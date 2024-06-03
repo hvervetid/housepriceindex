@@ -5,23 +5,22 @@
 \alias{example_dataset_transactions}
 \title{Transaction data}
 \format{
-An sf data frame with 1,648,823 rows and 6 columns:
+An sf data frame with 481,159 rows and 5 columns:
 \describe{
-  \item{price}{Price of transaction in euro per square meter.}
+  \item{price}{Price of transaction in pounds.}
   \item{year}{Year of transaction}
-  \item{Att_area}{Size of transacted property in square meters.}
-  \item{Att_balcon}{A dummy for whether the property has a balcony.}
-  \item{submarket}{An indicator for whether the property is in East Berlin, West Berlin or Rest of Germany}
+  \item{Att_newbuilt}{A dummy for whether the property is newbuilt}
+  \item{submarket}{Submarket 2 is all properties south of the Thames, submarket 1 is all properties north of the Thames}
   \item{geometry}{An sf column giving the location of the property as a point.}
 }
 }
 \source{
-Gabriel Ahlfeldt,
+HM Land Registry's Price Paid Data (\url{https://www.gov.uk/government/collections/price-paid-data}). Ordnance Survey's Code Point open (\url{https://www.data.gov.uk/dataset/c1e0176d-59fb-4a8c-92c9-c8b376a80687/code-point-open})
 }
 \usage{
 example_dataset_transactions
 }
 \description{
-An artificial dataset mimicking property transactions in Berlin.
+Geolocated property transactions in Greater London in 2015 to 2018.
 }
 \keyword{datasets}

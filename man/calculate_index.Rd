@@ -9,8 +9,8 @@ calculate_index(
   transaction_dataset,
   observations_outer,
   observations_inner,
-  max_radius_outer = 5,
-  max_radius_inner = 2.5,
+  max_radius_outer = 20,
+  max_radius_inner = 10,
   debug = F
 )
 }
@@ -27,9 +27,9 @@ The dataset must have columns named 'year', 'submarket' and 'price'. Any attribu
 
 \item{observations_inner}{The target number of transactions for the inner ring.}
 
-\item{max_radius_outer}{The maximal radius in kilometers to be taken by the outer ring. Default value 5 km.}
+\item{max_radius_outer}{The maximal radius in kilometers to be taken by the outer ring. Default value 20 km.}
 
-\item{max_radius_inner}{The maximal radius in kilometers to be taken by the inner ring. Default value 2.5 km.}
+\item{max_radius_inner}{The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.}
 
 \item{debug}{Whether to print all messages for debugging purpose. Defaults to FALSE.}
 }

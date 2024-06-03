@@ -72,23 +72,37 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
 
     # Run regressions
-    formula = stats::reformulate(c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0'), response = 'lprice')
+    # If radius of inner and outer rings are identical, a special procedure is needed. However, this procedure is slower and therefore we prefer not to use it unless necessary.
+    if (round(radius_T,2)!=round(radius_A,2)){
 
-    reg = stats::lm(formula, data = transactions_subset)
+      formula = stats::reformulate(c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0'), response = 'lprice')
+      reg = stats::lm(formula, data = transactions_subset)
 
-    # Extract coefficients and clustered standard errors as data table
-    if (applied_max == 0){
-        clusteredcoefs <- lmtest::coeftest(reg, vcov = vcovCL, cluster = ~outside_T)[,]         # cluster as in AHS
+      test = lmtest::coeftest(reg, vcov = vcovCL, cluster = ~outside_T)
+      test = as.data.frame(test[,])
+      clusteredcoefs = data.table(varname = rownames(test), coefficients = test$Estimate, stderr=test$'Std. Error')
+
     } else {
-        transactions_subset[, SECLUSTER := ifelse(dist_km < radius_A*0.5, 1, 0)]
-        clusteredcoefs <- lmtest::coeftest(reg, vcov = vcovCL, cluster = ~SECLUSTER)            # cluster as in AHS
+
+
+      # Extract coefficients and clustered standard errors as data table
+      if (applied_max == 0){
+        rhs <- c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0' )
+        fml <- stats::as.formula(paste("lprice ~ ", addregressors(rhs),  "| outside_T"))
+        lm <- fixest::feols(fml, data = transactions_subset, cluster = ~outside_T)
+      } else {
+          transactions_subset[, SECLUSTER := ifelse(dist_km < radius_A*0.5, 1, 0)]
+        rhs <- c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0', 'outside_T' )
+        fml <- stats::as.formula(paste("lprice ~ ", addregressors(rhs),  "| SECLUSTER"))
+        lm <- fixest::feols(fml, data = transactions_subset, cluster = ~SECLUSTER)
+      }
+
+      clusteredcoefs = data.table(varname = rownames(lm$coeftable), coefficients = lm$coefficients, stderr=lm$se)
+
     }
 
-    clusteredcoefstab <- data.table::as.data.table(clusteredcoefs)
-    clusteredcoefstab[, varname := rownames(clusteredcoefs)]
-
     # Only keep the coefficients of interest
-    coefs = clusteredcoefstab[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
+    coefs = clusteredcoefs[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
     coefs[, year := as.numeric(stringr::str_remove_all(varname, '[:alpha:]'))]
 
     # If only one year's worth of transactions is used, the year will not show up in name of coefficient.
@@ -100,10 +114,10 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     tosave = data.table::data.table(
         target_id = one_target$target_id,
         year = coefs$year,
-        price = exp(coefs$Estimate),
-        price_se = exp(coefs$Estimate + coefs$'Std. Error') - exp(coefs$Estimate),
-        lprice = coefs$Estimate,
-        lprice_se = coefs$'Std. Error',
+        price = exp(coefs$coefficients),
+        price_se = exp(coefs$coefficients + coefs$stderr) - exp(coefs$coefficients),
+        lprice = coefs$coefficients,
+        lprice_se = coefs$stderr,
         target_X = one_target$target_X,
         target_Y = one_target$target_Y,
         outer_radius_used = radius_A,
@@ -120,6 +134,12 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 demean_variable <- function(data, var) {
     data[, (var) := get(var) - mean(get(var), na.rm = TRUE)]
 }
+
+
+# Helper function to add regressors together ------------------------------
+
+addregressors <- function(x){
+  paste(x, collapse = "+")}
 
 
 # Helper function to transform proj into meters ---------------------------
@@ -184,8 +204,8 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' The dataset must have columns named 'year', 'submarket' and 'price'. Any attributes to be included in the regression as hedonics must be called "Att_xxx", with xxx being replaceable.
 #' @param observations_outer The target number of transactions for the outer ring.
 #' @param observations_inner The target number of transactions for the inner ring.
-#' @param max_radius_outer The maximal radius in kilometers to be taken by the outer ring. Default value 5 km.
-#' @param max_radius_inner The maximal radius in kilometers to be taken by the inner ring. Default value 2.5 km.
+#' @param max_radius_outer The maximal radius in kilometers to be taken by the outer ring. Default value 20 km.
+#' @param max_radius_inner The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.
 #' @param debug Whether to print all messages for debugging purpose. Defaults to FALSE.
 #'
 #' @return A single data.table with a row for each year-target pair.
@@ -193,6 +213,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @import sf
 #' @import stringr
 #' @import lmtest
+#' @import fixest
 #' @import sandwich
 #' @import foreach
 #' @import doParallel
@@ -206,8 +227,8 @@ calculate_index = function(target_dataset,
                            transaction_dataset,
                            observations_outer,
                            observations_inner,
-                           max_radius_outer=5,
-                           max_radius_inner=2.5,
+                           max_radius_outer=20,
+                           max_radius_inner=10,
                            debug=F){
 
     message('Preparing datasets...')
@@ -277,74 +298,77 @@ calculate_index = function(target_dataset,
   transaction_dataset = data.table::as.data.table(transaction_dataset)
   target_dataset = data.table::as.data.table(target_dataset)
 
-    # Check whether variables are named correctly
-    if (debug){message('Checking whether variables are named correctly...')}
-    if (! 'target_id' %in% names(target_dataset)){
-        stop('There is no variable named "target_id" to identify targets in the target dataset. Please make one.')}
-    if (! 'target_X' %in% names(target_dataset)){
-        stop('There is no variable named "target_X" to identify projected X coordinate for target dataset.Please make one or convert target dataset to an sf dataframe with known CRS.')}
-    if (! 'target_Y' %in% names(target_dataset)){
-        stop('There is no variable named "target_Y" to identify projected Y coordinate for target dataset. Please make one or convert target dataset to an sf dataframe with known CRS.')}
-    if (! 'origin_X' %in% names(transaction_dataset)){
-        stop('There is no variable named "origin_X" to identify projected X coordinate for transaction dataset. Please make one or convert transaction dataset to an sf dataframe with known CRS.')}
-    if (! 'origin_Y' %in% names(transaction_dataset)){
-        stop('There is no variable named "origin_Y" to identify projected Y coordinate for transaction dataset.Please make one or convert transaction dataset to an sf dataframe with known CRS.')}
-    if (! 'year' %in% names(transaction_dataset)){
-        stop('There is no variable named "year" to identify the year of a transaction in the transaction dataset.Please make one. If all transactions occur in the same period, you may simply define year=1.')}
-    if (! 'submarket' %in% names(transaction_dataset)){
-        stop('There is no variable named "submarket" to identify the submarket of a transaction in the transaction dataset.Please make one. If you do not want separate submarkets, you may simply define submarket=1.')}
-    if (! 'price' %in% names(transaction_dataset)){
-        stop('There is no variable named "price" to identify the price of a transaction in the transaction dataset. Please make one. Take care that the price should be in nominal currency, NOT in logs. It may be for the whole transaction or per unit of floorspace.')}
+  # Check whether variables are named correctly
+  if (debug){message('Checking whether variables are named correctly...')}
+  if (! 'target_id' %in% names(target_dataset)){
+      stop('There is no variable named "target_id" to identify targets in the target dataset. Please make one.')}
+  if (! 'target_X' %in% names(target_dataset)){
+      stop('There is no variable named "target_X" to identify projected X coordinate for target dataset.Please make one or convert target dataset to an sf dataframe with known CRS.')}
+  if (! 'target_Y' %in% names(target_dataset)){
+      stop('There is no variable named "target_Y" to identify projected Y coordinate for target dataset. Please make one or convert target dataset to an sf dataframe with known CRS.')}
+  if (! 'origin_X' %in% names(transaction_dataset)){
+      stop('There is no variable named "origin_X" to identify projected X coordinate for transaction dataset. Please make one or convert transaction dataset to an sf dataframe with known CRS.')}
+  if (! 'origin_Y' %in% names(transaction_dataset)){
+      stop('There is no variable named "origin_Y" to identify projected Y coordinate for transaction dataset.Please make one or convert transaction dataset to an sf dataframe with known CRS.')}
+  if (! 'year' %in% names(transaction_dataset)){
+      stop('There is no variable named "year" to identify the year of a transaction in the transaction dataset.Please make one. If all transactions occur in the same period, you may simply define year=1.')}
+  if (! 'submarket' %in% names(transaction_dataset)){
+      stop('There is no variable named "submarket" to identify the submarket of a transaction in the transaction dataset.Please make one. If you do not want separate submarkets, you may simply define submarket=1.')}
+  if (! 'price' %in% names(transaction_dataset)){
+      stop('There is no variable named "price" to identify the price of a transaction in the transaction dataset. Please make one. Take care that the price should be in nominal currency, NOT in logs. It may be for the whole transaction or per unit of floorspace.')}
 
-    if (debug){message('Variables are named correctly.')}
-    # Prepare year as factor (except if only one year exists)
-    if (debug){message('Converting year to factor variable...')}
-    if (var(transaction_dataset$year)>0){
-        transaction_dataset[, yearfactor := as.factor(year)]
-    } else {
-        transaction_dataset[, yearfactor := year]
+  if (debug){message('Variables are named correctly.')}
+  # Prepare year as factor (except if only one year exists)
+  if (debug){message('Converting year to factor variable...')}
+  if (var(transaction_dataset$year)>0){
+      transaction_dataset[, yearfactor := as.factor(year)]
+  } else {
+      transaction_dataset[, yearfactor := year]
+  }
+
+  # Prepare log price
+  if (debug){message('Calculating log price...')}
+  transaction_dataset[, lprice := log(price)]
+
+  # Find list of attributes
+  if (debug){message('Finding list of attributes to control for...')}
+  attribute_vars = names(transaction_dataset)
+  attribute_vars = attribute_vars[stringr::str_detect(attribute_vars, 'Att_')==T]
+
+  # demean variables
+  if (debug){message('Demeaning variables...')}
+
+  for (attr_var in attribute_vars){
+      demean_variable(data=transaction_dataset, var=attr_var)}
+
+  # Run regressions in parallel
+  message('Prepation done. Calculating index...')
+
+  if (debug){message('Registering support for parallel processing...')}
+
+  n_cores = parallel::detectCores()
+  if (n_cores>1){
+    doParallel::registerDoParallel(n_cores-1)
+  } else {
+    doParallel::registerDoParallel(1)
     }
 
-    # Prepare log price
-    if (debug){message('Calculating log price...')}
-    transaction_dataset[, lprice := log(price)]
+  package_list = c('sf', 'data.table', 'stringr', 'lmtest', 'sandwich')
 
-    # Find list of attributes
-    if (debug){message('Finding list of attributes to control for...')}
-    attribute_vars = names(transaction_dataset)
-    attribute_vars = attribute_vars[stringr::str_detect(attribute_vars, 'Att_')==T]
+  start_time = Sys.time()
 
-    # demean variables
-    if (debug){message('Demeaning variables...')}
+  if (debug){message('Evaluating ...')}
 
-    for (attr_var in attribute_vars){
-        demean_variable(data=transaction_dataset, var=attr_var)}
+  evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .packages = package_list, .verbose = debug) %dopar% calculate_index_point(target_dataset, transaction_dataset,
+                          observations_outer, observations_inner,
+                          max_radius_outer, max_radius_inner,
+                          attribute_vars, oa)
 
-    # Run regressions in parallel
-    message('Prepation done. Calculating index...')
-
-    if (debug){message('Registering support for parallel processing...')}
-
-    n_cores = parallel::detectCores()
-    doParallel::registerDoParallel(n_cores-1)
-    package_list = c('sf', 'data.table', 'stringr', 'lmtest', 'sandwich')
-
-    start_time = Sys.time()
-
-    if (debug){message('Evaluating ...')}
-
-    evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .packages = package_list) %dopar%
-        calculate_index_point(target_dataset, transaction_dataset,
-                            observations_outer, observations_inner,
-                            max_radius_outer, max_radius_inner,
-                            attribute_vars, oa)
-
-    end_time = Sys.time()
-    duration = difftime(end_time, start_time)
-    if (nrow(evaluated)<1){stop('The index did not calculate succesfully. Further debug necessary...')}
-    message(paste0("Finished calculating the index in ", round(duration[[1]], 2), ' ', units(duration), "."))
-    return(evaluated)
+  end_time = Sys.time()
+  duration = difftime(end_time, start_time)
+  if (nrow(evaluated)<1){stop('The index did not calculate succesfully. Further debug necessary...')}
+  message(paste0("Finished calculating the index in ", round(duration[[1]], 2), ' ', units(duration), "."))
+  return(evaluated)
 }
-
 
 
