@@ -4,11 +4,12 @@ Title: A package to construct house price indices from transactions
 Version: 0.1.0
 Author: Alexander Hansen
 Maintainer: Alexander Hansen <alexander.g.hansen@hotmail.com>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Description: This package is designed to construct an index of house prices at given targets
+    using a list of transactions.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+LazyDataCompression:xz
 RoxygenNote: 7.3.1
 Imports: 
     data.table,

@@ -28,6 +28,7 @@ transaction = left_join(transaction, postcode, by = 'postcode')
 transaction = select(transaction, price, Att_newbuilt, year, submarket, geometry)
 example_dataset_transactions = st_as_sf(transaction, crs = 27700)
 example_dataset_transactions = filter(example_dataset_transactions, st_is_empty(example_dataset_transactions)==F)
+example_dataset_transactions = st_transform(example_dataset_transactions, crs = 4326)
 # set crs
 usethis::use_data(example_dataset_transactions, overwrite = TRUE)
 
@@ -42,4 +43,5 @@ ldward = filter(ldward, DISTRICT %in% innerlondon)
 ldward$target_id = ldward$GSS_CODE
 ldward = select(ldward, NAME, target_id, DISTRICT, geometry)
 example_dataset_wards = ldward
+example_dataset_wards = st_transform(example_dataset_wards, crs = 4326)
 usethis::use_data(example_dataset_wards, overwrite=TRUE)

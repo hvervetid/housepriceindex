@@ -43,12 +43,20 @@ library(housepriceindex)
 
 For the index to work as intended, it is imperative that you structure the input data frames as follows: 
 * Targets
-    * xx 
-    * yy
+    * There must be a column named 'target_id' with *distinct* names for each target. This could be a unique name, id, row identifier etc.
+    * There must be EITHER 
+        a) an sf column named 'geometry' with a POINT for each target and known coordinate reference system (CRS)
+        b) Two columns named 'target_X' and 'target_Y' showing the X and Y position of the target in projected meters. 
 * Transactions
-    * xx
-    ** yy 
-
+    * There must be a column named 'year'. If all transactions take place in the same period, make a column with year=1.
+    * There must be a column named 'submarket'. If all transactions take place in the same *continuous* market, make a column with submarket=1. 
+    * There must be a column named 'price'. The price should be in nominal currency. It can be either per unit of floorspace or for the whole property. The final index will be in the same unit. 
+    * If you want observable attributes to be included in the regression, please name them 'Att_*' with the asterisk being an arbitrary name. By default, attributes will be included under the assumption of a log-linear relationship with price. If the attributes should enter as categorical variables, please format the column appropriately using as.factor(Att_*) first. If the attributes should enter as polynomials, create separate columns for each power. 
+    * There must be EITHER 
+        a) an sf column named 'geometry' with a POINT for each transaction and known coordinate reference system (CRS)
+        b) Two columns named 'origin_X' and 'origin_Y' showing the X and Y position of the target in projected meters. 
+    
+We strongly recommend that the two datasets are in the same format: either both are SF dataframes or both are in projected meters using the same CRS. 
 
 ## Example
 
@@ -81,7 +89,7 @@ ggplot() + geom_sf(data=wards, aes(fill=price))
 ```
 In this case, you calculate the index for a single point and assume that it is representative across the whole hexagon. If the hexagons are large, it may be a good idea to create several points within each hexagon. 
 
-The example datasets are publicly available property transactions in Greater London in 2015-2018, geolocated by postcode, as well as a list of wards in City of London and Inner London boroughs. Postcodes were geolocated using the publicly available Code-Point Open geodatapackage. 
+The example datasets are publicly available property transactions in Greater London in 2015-2018, geolocated by postcode, as well as a list of wards in City of London and Inner London boroughs. Postcodes were geolocated using the publicly available Code-Point Open geodatapackage. See data description by running ?example_dataset_wards and ?example_dataset_transactions for further details.  
 
 Contains HM Land Registry data © Crown copyright and database right 2021. This data is licensed under the Open Government Licence v3.0. 
 
