@@ -22,6 +22,7 @@ Depending on how many transactions you have, setting the observations_outer para
 There are also three other parameters you may set: 
 * max_radius_outer: Sets a maximal radius that the outer ring can take. The default value is 20 kilometers. 
 * max_radius_inner: Sets a maximal radius that the inner ring can take. The default value is 10 kilometers. 
+* n_cores: How many cores the program will use. The default is NULL, meaning that R will use all available cores but one. If the program fails because of a lack of memory, try selecting a lower number. You can see how many cores your computer has by running 'parallel::detectCores()' in console. 
 * debug: If set to TRUE, more detailed reports on the workings of the func
 
 
@@ -94,3 +95,9 @@ The example datasets are publicly available property transactions in Greater Lon
 Contains HM Land Registry data © Crown copyright and database right 2021. This data is licensed under the Open Government Licence v3.0. 
 
 Contains OS data © Crown copyright and database right 2020 Contains Royal Mail data © Royal Mail copyright and Database right 2020 Contains National Statistics data © Crown copyright and database right 2020
+
+## Known issue
+
+*This list is expanded dynamically.*
+
+* "error in serialize(data node$con) error writing to connection". This typically means that your system ran out of memory. Try decreasing the number of cores using the n_cores argument. 

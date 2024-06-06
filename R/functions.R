@@ -206,6 +206,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @param observations_inner The target number of transactions for the inner ring.
 #' @param max_radius_outer The maximal radius in kilometers to be taken by the outer ring. Default value 20 km.
 #' @param max_radius_inner The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.
+#' @param n_cores The number of cores to be used. Default is NULL, meaning that the program will use all but one available cores.
 #' @param debug Whether to print all messages for debugging purpose. Defaults to FALSE.
 #'
 #' @return A single data.table with a row for each year-target pair.
@@ -229,6 +230,7 @@ calculate_index = function(target_dataset,
                            observations_inner,
                            max_radius_outer=20,
                            max_radius_inner=10,
+                           n_cores = NULL,
                            debug=F){
 
     message('Preparing datasets...')
@@ -342,16 +344,18 @@ calculate_index = function(target_dataset,
       demean_variable(data=transaction_dataset, var=attr_var)}
 
   # Run regressions in parallel
-  message('Prepation done. Calculating index...')
 
   if (debug){message('Registering support for parallel processing...')}
 
-  n_cores = parallel::detectCores()
-  if (n_cores>1){
-    doParallel::registerDoParallel(n_cores-1)
-  } else {
-    doParallel::registerDoParallel(1)
-    }
+  # If no number or cores is specified, use 'number avaialble minus one'. If there is only one core, that would be a bad idea, so we select higher of that or one.
+  if (is.null(n_cores)){
+    n_cores_available = parallel::detectCores()
+    n_cores = max(n_cores_available-1, 1)
+  }
+
+  doParallel::registerDoParallel(n_cores)
+
+  message(paste('Prepation done. Calculating index using', n_cores, 'cores...'))
 
   package_list = c('sf', 'data.table', 'stringr', 'lmtest', 'sandwich')
 

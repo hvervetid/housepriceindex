@@ -11,6 +11,7 @@ calculate_index(
   observations_inner,
   max_radius_outer = 20,
   max_radius_inner = 10,
+  n_cores = NULL,
   debug = F
 )
 }
@@ -30,6 +31,8 @@ The dataset must have columns named 'year', 'submarket' and 'price'. Any attribu
 \item{max_radius_outer}{The maximal radius in kilometers to be taken by the outer ring. Default value 20 km.}
 
 \item{max_radius_inner}{The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.}
+
+\item{n_cores}{The number of cores to be used. Default is NULL, meaning that the program will use all but one available cores.}
 
 \item{debug}{Whether to print all messages for debugging purpose. Defaults to FALSE.}
 }
