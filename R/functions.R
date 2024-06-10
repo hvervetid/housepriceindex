@@ -20,6 +20,7 @@ use_package('foreach')}
 #' @param T_N The target number of transactions for the inner ring.
 #' @param treatment_vars List of variables containing Attributes to be included in regression.
 #' @param id The id of the single target identifying it within the target_id column.
+#' @param debug Whether to print messages for debugging.
 #'
 #' @return A data.table
 #' @export
@@ -27,7 +28,7 @@ use_package('foreach')}
 #' @examples
 #' #On the way
 calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N,
-                               max_radius_A, max_radius_T, treatment_vars, id){
+                               max_radius_A, max_radius_T, treatment_vars, id, debug){
 
     # Isolate point
     one_target = list_of_targets[target_id==id,]
@@ -46,6 +47,8 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
     # Find number of transactions
     N <- nrow(list_of_transactions)
+    # Find number of years
+    N_year <- uniqueN(list_of_transactions, by = 'year')
 
     # Find radius that hits A_N criterion (multiply percentile with N)
     desired_quantile_A = A_N/N
@@ -53,6 +56,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     # If this is too large relative to number of potential observations, replace it by maximum possible
     if (desired_quantile_A>1){desired_quantile_A <- 1}
     radius_A = as.numeric(stats::quantile(list_of_transactions$dist_km, desired_quantile_A))
+
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
     # create marker of whether observations are inside or outside
@@ -74,48 +78,41 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
         radius_T <- max_radius_T
         applied_max <- 1} else {applied_max <- 0}
 
-    # create marker
+    # If radius of inner and outer rings are identical, we invoke emergency powers and set inner radius to half of outer
+    if (round(radius_T,5)==round(radius_A,5)){
+      message(paste('For target id',id, 'inner radius is set to three-quarters of outer radius'))
+      radius_T <- 0.75*radius_A}
+
+    # create marker of observations outside inner ring
     transactions_subset[, outside_T := ifelse(dist_km>radius_T, 1, 0)]
 
 
     # Run regressions
-    # If radius of inner and outer rings are identical, a special procedure is needed. However, this procedure is slower and therefore we prefer not to use it unless necessary.
-    if (round(radius_T,2)!=round(radius_A,2)){
-
-      formula = stats::reformulate(c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0'), response = 'lprice')
+      formula = stats::reformulate(c(treatment_vars, 'dist_km:yearfactor', 'yearfactor', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket:yearfactor', '0'), response = 'lprice')
       reg = stats::lm(formula, data = transactions_subset)
 
       test = lmtest::coeftest(reg, vcov = vcovCL, cluster = ~outside_T)
       test = as.data.frame(test[,])
       clusteredcoefs = data.table(varname = rownames(test), coefficients = test$Estimate, stderr=test$'Std. Error')
 
-    } else {
-
-
-      # Extract coefficients and clustered standard errors as data table
-      if (applied_max == 0){
-        rhs <- c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0' )
-        fml <- stats::as.formula(paste("lprice ~ ", addregressors(rhs),  "| outside_T"))
-        lm <- fixest::feols(fml, data = transactions_subset, cluster = ~outside_T)
-      } else {
-          transactions_subset[, SECLUSTER := ifelse(dist_km < radius_A*0.5, 1, 0)]
-        rhs <- c(treatment_vars, 'dist_km*yearfactor', 'yearfactor', 'trend_X', 'trend_Y', 'not_own_submarket*yearfactor', '0', 'outside_T' )
-        fml <- stats::as.formula(paste("lprice ~ ", addregressors(rhs),  "| SECLUSTER"))
-        lm <- fixest::feols(fml, data = transactions_subset, cluster = ~SECLUSTER)
+      if (debug){
+        message(paste('Coefficient table for target_id', id, 'looks like this:'))
+        print(clusteredcoefs)
       }
-
-      clusteredcoefs = data.table(varname = rownames(lm$coeftable), coefficients = lm$coefficients, stderr=lm$se)
-
-    }
 
     # Only keep the coefficients of interest
     coefs = clusteredcoefs[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
-    coefs[, year := as.numeric(stringr::str_remove_all(varname, '[:alpha:]'))]
+    coefs[, year := as.numeric(stringr::str_extract(varname, '[:digit:]+'))]
 
-    # If only one year's worth of transactions is used, the year will not show up in name of coefficient.
-    # In that case, following modification is done.
-    if (sum(is.na(coefs$year))>0 & stats::var(list_of_transactions$year)==0){
-        coefs$year <- stats::median(list_of_transactions$year)}
+
+    # A couple of quick sanity checks
+    if (nrow(coefs)!=N_year){
+      message('Coefficient table should have exactly one row per year, but instead it looks like this:')
+      message(coefs)
+      stop('Regression failed. Try increasing max_radius_inner or decreasing observations_inner')}
+
+    # If only one year, remove artificial companion
+    coefs = coefs[year != 999999,]
 
     # create single-observation dataset and save
     tosave = data.table::data.table(
@@ -214,6 +211,8 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @param max_radius_outer The maximal radius in kilometers to be taken by the outer ring. Default value 20 km.
 #' @param max_radius_inner The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.
 #' @param n_cores The number of cores to be used. Default is NULL, meaning that the program will use all but one available cores.
+#' @param use_parallel Whether to use parallel processing. Defaults to TRUE. Turning off can be useful for debugging.
+#' @param skip_errors Whether to skip problematic targets. Defaults to FALSE, meaning an error will force the function to stop. Changing this parameter makes debugging very hard.
 #' @param debug Whether to print all messages for debugging purpose. Defaults to FALSE.
 #'
 #' @return A single data.table with a row for each year-target pair.
@@ -238,6 +237,8 @@ calculate_index = function(target_dataset,
                            max_radius_outer=20,
                            max_radius_inner=10,
                            n_cores = NULL,
+                           use_parallel = T,
+                           skip_errors=F,
                            debug=F){
 
     message('Preparing datasets...')
@@ -333,13 +334,28 @@ calculate_index = function(target_dataset,
     stop('The target IDs supplied are not unique. Please make them unique and try again.')}
   if (debug){message('Target IDs are indeed unique.')}
 
-  # Prepare year as factor (except if only one year exists)
-  if (debug){message('Converting year to factor variable...')}
-  if (var(transaction_dataset$year)>0){
-      transaction_dataset[, yearfactor := as.factor(year)]
-  } else {
-      transaction_dataset[, yearfactor := year]
+  # Check whether observation parameters are set correctly
+  if (observations_outer<=observations_inner){
+    stop('Observations_outer parameter must be higher than observations_inner')}
+  if (observations_outer<=0){
+    stop('Observations_outer parameter must be set to positive integer')}
+  if (observations_inner<=0){
+    stop('Observations_inner parameter must be set to positive integer')}
+
+  # If only one year exists, create an artificial year to ensure regression runs
+  if (var(transaction_dataset$year)==0){
+    if (debug){message('Only one year found. Creating separate dummy...')}
+    transaction_one <- transaction_dataset
+    transaction_one$year <- 999999
+    transaction_dataset <- rbind(transaction_dataset, transaction_one)
   }
+
+  # Prepare year as factor
+  if (debug){message('Converting year to factor variable...')}
+  transaction_dataset[, yearfactor := base::as.factor(year)]
+
+  if (debug){message(paste('Calculating index for the following years: ', print(levels(transaction_dataset$yearfactor))))}
+
 
   # Prepare log price
   if (debug){message('Calculating log price...')}
@@ -368,6 +384,9 @@ calculate_index = function(target_dataset,
 
   doParallel::registerDoParallel(n_cores)
 
+  if (use_parallel!=T){n_cores<-1}
+  if (skip_errors==F){onerror <- 'stop'} else {onerror <- 'remove'}
+
   message(paste('Prepation done. Calculating index using', n_cores, 'cores...'))
 
   package_list = c('sf', 'data.table', 'stringr', 'lmtest', 'sandwich')
@@ -375,16 +394,26 @@ calculate_index = function(target_dataset,
   start_time = Sys.time()
 
   if (debug){message('Evaluating ...')}
+  if (use_parallel==T){
+    evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %dopar%
+      calculate_index_point(target_dataset, transaction_dataset,
+      observations_outer, observations_inner,
+      max_radius_outer, max_radius_inner,
+      attribute_vars, oa, debug)
+    } else {
+      evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %do%
+        calculate_index_point(target_dataset, transaction_dataset,
+                              observations_outer, observations_inner,
+                              max_radius_outer, max_radius_inner,
+                              attribute_vars, oa, debug)
+      }
 
-  evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .packages = package_list, .verbose = debug) %dopar% calculate_index_point(target_dataset, transaction_dataset,
-                          observations_outer, observations_inner,
-                          max_radius_outer, max_radius_inner,
-                          attribute_vars, oa)
 
   end_time = Sys.time()
   duration = difftime(end_time, start_time)
   if (nrow(evaluated)<1){stop('The index did not calculate succesfully. Further debug necessary...')}
   message(paste0("Finished calculating the index in ", round(duration[[1]], 2), ' ', units(duration), "."))
+
   return(evaluated)
 }
 

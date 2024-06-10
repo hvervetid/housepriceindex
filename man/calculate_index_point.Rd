@@ -12,7 +12,8 @@ calculate_index_point(
   max_radius_A,
   max_radius_T,
   treatment_vars,
-  id
+  id,
+  debug
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ calculate_index_point(
 \item{treatment_vars}{List of variables containing Attributes to be included in regression.}
 
 \item{id}{The id of the single target identifying it within the target_id column.}
+
+\item{debug}{Whether to print messages for debugging.}
 }
 \value{
 A data.table

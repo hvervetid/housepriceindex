@@ -12,6 +12,8 @@ calculate_index(
   max_radius_outer = 20,
   max_radius_inner = 10,
   n_cores = NULL,
+  use_parallel = T,
+  skip_errors = F,
   debug = F
 )
 }
@@ -33,6 +35,10 @@ The dataset must have columns named 'year', 'submarket' and 'price'. Any attribu
 \item{max_radius_inner}{The maximal radius in kilometers to be taken by the inner ring. Default value 10 km.}
 
 \item{n_cores}{The number of cores to be used. Default is NULL, meaning that the program will use all but one available cores.}
+
+\item{use_parallel}{Whether to use parallel processing. Defaults to TRUE. Turning off can be useful for debugging.}
+
+\item{skip_errors}{Whether to skip problematic targets. Defaults to FALSE, meaning an error will force the function to stop. Changing this parameter makes debugging very hard.}
 
 \item{debug}{Whether to print all messages for debugging purpose. Defaults to FALSE.}
 }
