@@ -101,3 +101,5 @@ Contains OS data © Crown copyright and database right 2020 Contains Royal Mail 
 *This list is expanded dynamically.*
 
 * "error in serialize(data node$con) error writing to connection". This typically means that your system ran out of memory. Try decreasing the number of cores using the n_cores argument. 
+
+* "Error in fetch(key) : lazy-load database 'path/to/package/help/housepriceindex.rdb' is corrupt". This is apparently a common issue with packages. According to Stackoverflow, restarting R is the best way to solve the problem. If working in Rstudio, run .rs.restartR() and all your current variables etc. will be recreated. 

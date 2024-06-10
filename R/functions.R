@@ -49,6 +49,9 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
     # Find radius that hits A_N criterion (multiply percentile with N)
     desired_quantile_A = A_N/N
+
+    # If this is too large relative to number of potential observations, replace it by maximum possible
+    if (desired_quantile_A>1){desired_quantile_A <- 1}
     radius_A = as.numeric(stats::quantile(list_of_transactions$dist_km, desired_quantile_A))
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
@@ -61,6 +64,10 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     # Find radius that hits T_N criterion
     N_subset = nrow(transactions_subset)
     desired_quantile_T = T_N/N_subset
+
+    # If this is too large relative to number of potential observations, replace it by maximum possible
+    if (desired_quantile_T>1){desired_quantile_T <- 1}
+
     radius_T = as.numeric(stats::quantile(transactions_subset$dist_km, desired_quantile_T))
     # if it's too far out, replace with maximum
     if (radius_T > max_radius_T){
@@ -177,7 +184,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
     epsg = as.numeric(paste0(327, UTMzone))
   }
 
-  if (debug){message(paste('..Transforming dataset into CRS', epsg))}
+  message(paste('..Transforming dataset into CRS', epsg))
   # Transform dataset into metered CRS
   sf_df = sf::st_transform(sf_df, crs = epsg)
 
@@ -245,13 +252,13 @@ calculate_index = function(target_dataset,
   if (class(transaction_dataset)[[1]] == 'sf'){
     if (debug){message('Transforming transactions to projected coordinates in meters...')}
 
-    # Check whether target has a CRS
+    # Check whether transaction has a CRS
     transaction_crs = sf::st_crs(transaction_dataset, parameters=T)
     if (length(transaction_crs)==2){
       stop('Transaction dataset does not have a CRS. You must give the dataset a CRS or create variables named "origin_X" and "origin_Y" in projected meters.')
       }
 
-    # Check whether target CRS is metered.
+    # Check whether transaction CRS is metered.
     transaction_in_meter = stringr::str_detect(transaction_crs$units_gdal, c('metre'))
 
     # If not metered, find correct CRS and reproject
@@ -320,6 +327,12 @@ calculate_index = function(target_dataset,
       stop('There is no variable named "price" to identify the price of a transaction in the transaction dataset. Please make one. Take care that the price should be in nominal currency, NOT in logs. It may be for the whole transaction or per unit of floorspace.')}
 
   if (debug){message('Variables are named correctly.')}
+
+  # Check whether target IDs are unique
+  if (uniqueN(target_dataset, by = 'target_id') != nrow(target_dataset)){
+    stop('The target IDs supplied are not unique. Please make them unique and try again.')}
+  if (debug){message('Target IDs are indeed unique.')}
+
   # Prepare year as factor (except if only one year exists)
   if (debug){message('Converting year to factor variable...')}
   if (var(transaction_dataset$year)>0){
