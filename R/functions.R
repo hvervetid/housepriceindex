@@ -54,7 +54,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     desired_quantile_A = A_N/N
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
-    if (desired_quantile_A>1){desired_quantile_A <- 1}
+    if (desired_quantile<0 | desired_quantile_A>1 | is.numeric(desired_quantile_A)==F){desired_quantile_A <- 1}
     radius_A = as.numeric(stats::quantile(list_of_transactions$dist_km, desired_quantile_A))
 
     # if it's too far out, replace with maximum
@@ -70,7 +70,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     desired_quantile_T = T_N/N_subset
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
-    if (desired_quantile_T>1){desired_quantile_T <- 1}
+    if (desired_quantile_T<0 | desired_quantile_T>1 | is.numeric(desired_quantile_T)==F){desired_quantile_T <- 1}
 
     radius_T = as.numeric(stats::quantile(transactions_subset$dist_km, desired_quantile_T))
     # if it's too far out, replace with maximum
