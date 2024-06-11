@@ -13,7 +13,8 @@ calculate_index_point(
   max_radius_T,
   treatment_vars,
   id,
-  debug
+  debug,
+  N_year
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ calculate_index_point(
 \item{id}{The id of the single target identifying it within the target_id column.}
 
 \item{debug}{Whether to print messages for debugging.}
+
+\item{N_year}{Number of years to calculate the index for.}
 }
 \value{
 A data.table

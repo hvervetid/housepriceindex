@@ -1,11 +1,3 @@
-# not sure if these are necessary
-if(T==F){
-use_package('sf')
-use_package('stringr')
-use_package('data.table')
-use_package('lmtest')
-use_package('sandwich')
-use_package('foreach')}
 
 # Function to calculate index at single point -----------------------------
 
@@ -21,6 +13,7 @@ use_package('foreach')}
 #' @param treatment_vars List of variables containing Attributes to be included in regression.
 #' @param id The id of the single target identifying it within the target_id column.
 #' @param debug Whether to print messages for debugging.
+#' @param N_year Number of years to calculate the index for.
 #'
 #' @return A data.table
 #' @export
@@ -28,7 +21,7 @@ use_package('foreach')}
 #' @examples
 #' #On the way
 calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N,
-                               max_radius_A, max_radius_T, treatment_vars, id, debug){
+                               max_radius_A, max_radius_T, treatment_vars, id, debug, N_year){
 
     # Isolate point
     one_target = list_of_targets[target_id==id,]
@@ -47,8 +40,6 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
     # Find number of transactions
     N <- nrow(list_of_transactions)
-    # Find number of years
-    N_year <- uniqueN(list_of_transactions, by = 'year')
 
     # Find radius that hits A_N criterion (multiply percentile with N)
     desired_quantile_A = A_N/N
@@ -59,6 +50,12 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
+
+    # If some years are not present within the radius, increase circle to max distance and try again
+    N_year_within = uniqueN(list_of_transactions[dist_km<radius_A,], by = 'year')
+    if (N_year > N_year_within){
+      radius_A <- max_radius_A}
+
     # create marker of whether observations are inside or outside
     list_of_transactions[, outside_A := ifelse(dist_km>radius_A, 1, 0)]
 
@@ -78,7 +75,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
         radius_T <- max_radius_T
         applied_max <- 1} else {applied_max <- 0}
 
-    # If radius of inner and outer rings are identical, we invoke emergency powers and set inner radius to half of outer
+    # If radius of inner and outer rings are identical, we invoke emergency powers and set inner radius to proportion of outer
     if (round(radius_T,5)==round(radius_A,5)){
       message(paste('For target id',id, 'inner radius is set to three-quarters of outer radius'))
       radius_T <- 0.75*radius_A}
@@ -103,13 +100,6 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     # Only keep the coefficients of interest
     coefs = clusteredcoefs[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
     coefs[, year := as.numeric(stringr::str_extract(varname, '[:digit:]+'))]
-
-
-    # A couple of quick sanity checks
-    if (nrow(coefs)!=N_year){
-      message('Coefficient table should have exactly one row per year, but instead it looks like this:')
-      message(coefs)
-      stop('Regression failed. Try increasing max_radius_inner or decreasing observations_inner')}
 
     # If only one year, remove artificial companion
     coefs = coefs[year != 999999,]
@@ -356,6 +346,8 @@ calculate_index = function(target_dataset,
 
   if (debug){message(paste('Calculating index for the following years: ', print(levels(transaction_dataset$yearfactor))))}
 
+  # Find number of years
+  N_year <- uniqueN(transaction_dataset, by = 'year')
 
   # Prepare log price
   if (debug){message('Calculating log price...')}
@@ -399,13 +391,13 @@ calculate_index = function(target_dataset,
       calculate_index_point(target_dataset, transaction_dataset,
       observations_outer, observations_inner,
       max_radius_outer, max_radius_inner,
-      attribute_vars, oa, debug)
+      attribute_vars, oa, debug, N_year)
     } else {
       evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %do%
         calculate_index_point(target_dataset, transaction_dataset,
                               observations_outer, observations_inner,
                               max_radius_outer, max_radius_inner,
-                              attribute_vars, oa, debug)
+                              attribute_vars, oa, debug, N_year)
       }
 
 
@@ -414,6 +406,15 @@ calculate_index = function(target_dataset,
   if (nrow(evaluated)<1){stop('The index did not calculate succesfully. Further debug necessary...')}
   message(paste0("Finished calculating the index in ", round(duration[[1]], 2), ' ', units(duration), "."))
 
+  # Cross grid to ensure that we have all combinations.
+
+  crossgrid = data.table::CJ(evaluated$target_id, evaluated$year, unique = TRUE)
+  names(crossgrid) <- c('target_id', 'year')
+  if (nrow(crossgrid)==nrow(evaluated)){
+  } else {
+    evaluated = data.table::merge.data.table(evaluated, crossgrid, by = c('target_id', 'year'), all = T)
+    warning('Not all target-year combinations were succesfully calculated, potentially due to too restrictive parameters.')
+  }
   return(evaluated)
 }
 
