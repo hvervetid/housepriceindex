@@ -9,13 +9,14 @@ Description: This package is designed to construct an index of house prices at g
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-LazyDataCompression:xz
+LazyDataCompression: xz
 RoxygenNote: 7.3.1
 Imports: 
     data.table,
     doParallel,
     fixest,
     foreach,
+    iterators,
     lmtest,
     sandwich,
     sf,

@@ -5,20 +5,19 @@
 \title{Calculate index for a single target point in space}
 \usage{
 calculate_index_point(
-  list_of_targets,
+  one_target,
   list_of_transactions,
   A_N,
   T_N,
   max_radius_A,
   max_radius_T,
   treatment_vars,
-  id,
   debug,
   N_year
 )
 }
 \arguments{
-\item{list_of_targets}{The dataset containing all targets.}
+\item{one_target}{The target for which an index is to be calculated}
 
 \item{list_of_transactions}{The dataset with all transactions.}
 
@@ -31,8 +30,6 @@ calculate_index_point(
 \item{max_radius_T}{The maximal radius in kilometers to be taken by the inner ring.}
 
 \item{treatment_vars}{List of variables containing Attributes to be included in regression.}
-
-\item{id}{The id of the single target identifying it within the target_id column.}
 
 \item{debug}{Whether to print messages for debugging.}
 

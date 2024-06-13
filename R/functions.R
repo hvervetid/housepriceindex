@@ -4,14 +4,13 @@
 # Do to each point
 #' Calculate index for a single target point in space
 #'
-#' @param list_of_targets The dataset containing all targets.
+#' @param one_target The target for which an index is to be calculated
 #' @param list_of_transactions The dataset with all transactions.
 #' @param max_radius_A The maximal radius in kilometers to be taken by the outer ring.
 #' @param A_N The target number of transactions for the outer ring.
 #' @param max_radius_T The maximal radius in kilometers to be taken by the inner ring.
 #' @param T_N The target number of transactions for the inner ring.
 #' @param treatment_vars List of variables containing Attributes to be included in regression.
-#' @param id The id of the single target identifying it within the target_id column.
 #' @param debug Whether to print messages for debugging.
 #' @param N_year Number of years to calculate the index for.
 #'
@@ -20,11 +19,8 @@
 #'
 #' @examples
 #' #On the way
-calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N,
-                               max_radius_A, max_radius_T, treatment_vars, id, debug, N_year){
-
-    # Isolate point
-    one_target = list_of_targets[target_id==id,]
+calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
+                               max_radius_A, max_radius_T, treatment_vars, debug, N_year){
 
     # create spatial trends
     list_of_transactions[, trend_X := one_target$target_X-origin_X]
@@ -84,7 +80,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
 
     # If radius of inner and outer rings are identical, we invoke emergency powers and set inner radius to proportion of outer
     if (round(radius_T,5)==round(radius_A,5)){
-      message(paste('For target id',id, 'inner radius is set to three-quarters of outer radius'))
+      message(paste('For target id',one_target$target_id, 'inner radius is set to three-quarters of outer radius'))
       radius_T <- 0.75*radius_A}
 
     # create marker of observations outside inner ring
@@ -100,7 +96,7 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
       clusteredcoefs = data.table(varname = rownames(test), coefficients = test$Estimate, stderr=test$'Std. Error')
 
       if (debug){
-        message(paste('Coefficient table for target_id', id, 'looks like this:'))
+        message(paste('Coefficient table for target_id', one_target$target_id, 'looks like this:'))
         print(clusteredcoefs)
       }
 
@@ -221,6 +217,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @import sandwich
 #' @import foreach
 #' @import doParallel
+#' @import iterators
 #' @export
 #'
 #' @examples
@@ -381,8 +378,6 @@ calculate_index = function(target_dataset,
     n_cores = max(n_cores_available-1, 1)
   }
 
-  doParallel::registerDoParallel(n_cores)
-
   if (use_parallel!=T){n_cores<-1}
   if (skip_errors==F){onerror <- 'stop'} else {onerror <- 'remove'}
 
@@ -394,18 +389,23 @@ calculate_index = function(target_dataset,
 
   if (debug){message('Evaluating ...')}
   if (use_parallel==T){
-    evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %dopar%
-      calculate_index_point(target_dataset, transaction_dataset,
-      observations_outer, observations_inner,
-      max_radius_outer, max_radius_inner,
-      attribute_vars, oa, debug, N_year)
-    } else {
-      evaluated = foreach::foreach(oa = target_dataset$target_id, .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %do%
-        calculate_index_point(target_dataset, transaction_dataset,
+    doParallel::registerDoParallel(n_cores)
+
+    evaluated = foreach::foreach(oa = iterators::iter(target_dataset, by = 'row'), .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %dopar%
+      calculate_index_point(oa, transaction_dataset,
                               observations_outer, observations_inner,
                               max_radius_outer, max_radius_inner,
-                              attribute_vars, oa, debug, N_year)
-      }
+                              attribute_vars, debug, N_year)
+
+    doParallel::stopImplicitCluster()
+
+  } else {
+    evaluated = foreach::foreach(oa = iterators::iter(target_dataset, by = 'row'), .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %do%
+      calculate_index_point(oa, transaction_dataset,
+                            observations_outer, observations_inner,
+                            max_radius_outer, max_radius_inner,
+                            attribute_vars, debug, N_year)
+    }
 
 
   end_time = Sys.time()
@@ -418,10 +418,10 @@ calculate_index = function(target_dataset,
   crossgrid = data.table::CJ(evaluated$target_id, evaluated$year, unique = TRUE)
   names(crossgrid) <- c('target_id', 'year')
   if (nrow(crossgrid)==nrow(evaluated)){
-    message('All target-year combinations were succesfully calculated)')
+    message('All target-year combinations were successfully calculated. ')
   } else {
     evaluated = data.table::merge.data.table(evaluated, crossgrid, by = c('target_id', 'year'), all = T)
-    message('Not all target-year combinations were succesfully calculated, potentially due to too restrictive parameters.')
+    message('Not all target-year combinations were successfully calculated, potentially due to too restrictive parameters.')
   }
   return(evaluated)
 }
