@@ -39,22 +39,29 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     list_of_transactions[, not_own_submarket := ifelse(submarket==relevant_submarket, 0, 1)]
 
     # Find number of transactions
-    N <- nrow(list_of_transactions)
+    N <- nrow(list_of_transactions[not_own_submarket==0,])
 
     # Find radius that hits A_N criterion (multiply percentile with N)
     desired_quantile_A = A_N/N
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
     if (desired_quantile_A<0 | desired_quantile_A>1 | is.numeric(desired_quantile_A)==F){desired_quantile_A <- 1}
-    radius_A = as.numeric(stats::quantile(list_of_transactions$dist_km, desired_quantile_A))
+    radius_A = as.numeric(stats::quantile(list_of_transactions[not_own_submarket==0,dist_km], desired_quantile_A))
 
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
 
-    # If some years are not present within the radius, increase circle to max distance and try again
-    N_year_within = uniqueN(list_of_transactions[dist_km<radius_A,], by = 'year')
+    # If some years are not present within the radius, double circle radius and try again
+    N_year_within = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
     if (N_year > N_year_within){
-      radius_A <- max_radius_A}
+      radius_A <- radius_A*2
+      if (radius_A > max_radius_A){
+        radius_A <- max_radius_A
+        }
+      }
+
+    # if it's too far out, replace with maximum
+
 
     # create marker of whether observations are inside or outside
     list_of_transactions[, outside_A := ifelse(dist_km>radius_A, 1, 0)]
@@ -63,13 +70,13 @@ calculate_index_point = function(list_of_targets, list_of_transactions, A_N, T_N
     transactions_subset <- list_of_transactions[outside_A==0,]
 
     # Find radius that hits T_N criterion
-    N_subset = nrow(transactions_subset)
+    N_subset = nrow(transactions_subset[not_own_submarket==0,])
     desired_quantile_T = T_N/N_subset
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
     if (desired_quantile_T<0 | desired_quantile_T>1 | is.numeric(desired_quantile_T)==F){desired_quantile_T <- 1}
 
-    radius_T = as.numeric(stats::quantile(transactions_subset$dist_km, desired_quantile_T))
+    radius_T = as.numeric(stats::quantile(transactions_subset[not_own_submarket==0,dist_km], desired_quantile_T))
     # if it's too far out, replace with maximum
     if (radius_T > max_radius_T){
         radius_T <- max_radius_T
@@ -411,9 +418,10 @@ calculate_index = function(target_dataset,
   crossgrid = data.table::CJ(evaluated$target_id, evaluated$year, unique = TRUE)
   names(crossgrid) <- c('target_id', 'year')
   if (nrow(crossgrid)==nrow(evaluated)){
+    message('All target-year combinations were succesfully calculated)')
   } else {
     evaluated = data.table::merge.data.table(evaluated, crossgrid, by = c('target_id', 'year'), all = T)
-    warning('Not all target-year combinations were succesfully calculated, potentially due to too restrictive parameters.')
+    message('Not all target-year combinations were succesfully calculated, potentially due to too restrictive parameters.')
   }
   return(evaluated)
 }
