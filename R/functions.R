@@ -107,6 +107,10 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
     # If only one year, remove artificial companion
     coefs = coefs[year != 999999,]
 
+    # Find the number of transactions used for outer and inner ring in each year
+    Nouter = transactions_subset[, list(.N), by = 'year']
+    Ninner = transactions_subset[outside_T==0, list(.N), by = 'year']
+
     # create single-observation dataset and save
     tosave = data.table::data.table(
         target_id = one_target$target_id,
@@ -118,7 +122,11 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
         target_X = one_target$target_X,
         target_Y = one_target$target_Y,
         outer_radius_used = radius_A,
-        inner_radius_used = radius_T
+        inner_radius_used = radius_T,
+        outer_obs_used = Nouter$N,
+        inner_obs_used = Ninner$N
+        #outer_obs_used = nrow(transactions_subset),
+        #inner_obs_used = nrow(transactions_subset[outside_T==0,])
     )
 
     return(tosave)
