@@ -259,7 +259,19 @@ calculate_index = function(target_dataset,
     transaction_crs = sf::st_crs(transaction_dataset, parameters=T)
     if (length(transaction_crs)==2){
       stop('Transaction dataset does not have a CRS. You must give the dataset a CRS or create variables named "origin_X" and "origin_Y" in projected meters.')
-      }
+    }
+
+    # Check whether there are empty observations
+    transaction_dataset$isempty = st_is_empty(transaction_dataset$geometry)
+    if (sum(transaction_dataset$isempty)>0){
+      stop('Transaction dataset has observations with empty geometries. Please use sf::st_is_empty to identify such observations, remove these, and try again.')
+    }
+
+    # Check whether there are non-point observations
+    transaction_dataset$type = st_geometry_type(transaction_dataset$geometry)
+    if (sum(transaction_dataset$type != 'POINT')>0){
+      stop('Transaction dataset has observations with geometries that are not points. Please make them points (e.g. by finding centroid) and try again.')
+    }
 
     # Check whether transaction CRS is metered.
     transaction_in_meter = stringr::str_detect(transaction_crs$units_gdal, c('metre'))
@@ -285,6 +297,18 @@ calculate_index = function(target_dataset,
     target_crs = sf::st_crs(target_dataset, parameters=T)
     if (length(target_crs)==2){
       stop('Target dataset does not have a CRS. You must give the dataset a CRS or create variables named "target_X" and "target_Y" in projected meters.')
+    }
+
+    # Check whether there are empty observations
+    target_dataset$isempty = st_is_empty(target_dataset$geometry)
+    if (sum(target_dataset$isempty)>0){
+      stop('Target dataset has observations with empty geometries. Please use sf::st_is_empty to identify such observations, remove these, and try again.')
+    }
+
+    # Check whether there are non-point observations
+    target_dataset$type = st_geometry_type(target_dataset$geometry)
+    if (sum(target_dataset$type != 'POINT')>0){
+      stop('Target dataset has observations with geometries that are not points. Please make them points (e.g. by finding centroid) and try again.')
     }
 
     # Check whether target CRS is metered.
@@ -420,6 +444,9 @@ calculate_index = function(target_dataset,
   duration = difftime(end_time, start_time)
   if (nrow(evaluated)<1){stop('The index did not calculate succesfully. Further debug necessary...')}
   message(paste0("Finished calculating the index in ", round(duration[[1]], 2), ' ', units(duration), "."))
+
+  # remove duplicates (just in case any showed up by accident)
+  evaluated = unique(evaluated)
 
   # Cross grid to ensure that we have all combinations.
 
