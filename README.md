@@ -115,7 +115,7 @@ index_wide <- data.table::dcast(index_long, target_id ~ year, value.var = c('pri
 
 ### Merge into ward shapes and save as a shapefile 
 shape_index <- merge(wards, index_wide, by = 'target_id')
-sf::write_sf(shape_index, 'your/path/to/export/index_shapefile.shp)
+sf::write_sf(shape_index, 'your/path/to/export/index_shapefile.shp')
 
 ### Produce a quick map of the index in 2015 to see what it looks like
 ggplot() + geom_sf(data=shape_index, aes(fill=price_2015)) + 
