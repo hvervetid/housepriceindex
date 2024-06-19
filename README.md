@@ -51,7 +51,7 @@ For the index to work as intended, it is imperative that you structure the input
     * There must be a column named 'year'. If all transactions take place in the same period, make a column with year=1.
     * There must be a column named 'submarket'. If all transactions take place in the same *continuous* market, make a column with submarket=1. 
     * There must be a column named 'price'. The price should be in nominal currency. It can be either per unit of floorspace or for the whole property. The final index will be in the same unit. 
-    * If you want observable attributes to be included in the regression, please name them 'Att_*' with the asterisk being an arbitrary name. By default, attributes will be included under the assumption of a log-linear relationship with price. If the attributes should enter as categorical variables, please format the column appropriately using as.factor(Att_*) first. If the attributes should enter as polynomials, create separate columns for each power. 
+    * If you want observable attributes to be included in the regression, please name them 'Att_*' with the asterisk being an arbitrary name. By default, attributes will be included under the assumption of a log-linear relationship with price. If the attributes should enter as categorical variables, please format the column appropriately using as.factor(Att_) first. If the attributes should enter as polynomials, create separate columns for each power. 
     * There must be EITHER 
         a) an sf column named 'geometry' with a POINT for each transaction and known coordinate reference system (CRS)
         b) Two columns named 'origin_X' and 'origin_Y' showing the X and Y position of the target in projected meters. 
@@ -59,9 +59,9 @@ For the index to work as intended, it is imperative that you structure the input
 We strongly recommend that the two datasets are in the same format: either both are SF dataframes or both are in projected meters using the same CRS. 
 
 ## Output
-The algorithm will return a data table with one row for each year-target combination. It has the following variables: 
-* target_id: 
-* year: 
+The algorithm will return a data table with one row for each year-target combination (i.e. long format). It has the following variables: 
+* target_id
+* year
 * price: The calculated price index, in the same unit as in the input transaction dataset.
 * price_se: Standard errors around the given price index.
 * lprice: Log price index.
@@ -77,20 +77,22 @@ The algorithm will return a data table with one row for each year-target combina
 ## Example
 
 A very typical usercase: you have a list of property transactions and a list of spatial units (say, UK wards).
-You then find the centroids of the wards and calculate the index at each centroid. 
+You then find the centroids of the wards and calculate the index at each centroid. Finally, you save the output and create a map of a given year.  
 
 
 ``` r
-### Load packages 
+### Install and load packages (assuming you've already installed housepriceindex)
+install.packages('ggplot2', 'sf', 'data.table', 'haven')
 library(housepriceindex)
 library(sf)
-
+library(ggplot2)
+library(data.table)
 
 ### Load data
 ## The package comes with two example datasets to easily test the index. 
 ## These are automatically loaded with the package under the names 'example_dataset_wards' and 'example_dataset_transactions'
-wards <- example_dataset_wards  
-transactions <- example_dataset_transactions
+wards <- housepriceindex::example_dataset_wards  
+transactions <- housepriceindex::example_dataset_transactions
 
 
 ### Find centroids of wards to be used as the targets
@@ -102,26 +104,23 @@ index_long <- calculate_index(ward_centroids, transactions, observations_outer =
 
   
 ## Export index in long format to csv and dta 
-fwrite(index_long, 'your/path/to/export/index.csv')
+data.table::fwrite(index_long, 'your/path/to/export/index.csv')
 
-install.packages('haven')
 haven::write_dta(index_long, 'your/path/to/export/index.dta')
 
 
 ## Convert to wide format
-index_wide = dcast(index_long, target_id ~ year, value.var = c('price', 'price_se', 'outer_radius_used','inner_radius_used'))
+index_wide <- data.table::dcast(index_long, target_id ~ year, value.var = c('price', 'price_se', 'outer_radius_used','inner_radius_used'))
 
 
 ## Merge into ward shapes and produce a quick map of the index in 2015 to see what it looks like 
 shape_index <- merge(wards, index_wide, by = 'target_id')
 
-install.packages('ggplot2')
-library(ggplot2)
 ggplot() + geom_sf(data=shape_index, aes(fill=price_2015)) + 
     scale_fill_gradient(high='darkorchid4', low='wheat', name='Price index 2015 (£)', transform = 'log10')
   
 ```
-In this case, you calculate the index for a single point and assume that it is representative across the whole hexagon. If the hexagons are large, it may be a good idea to create several points within each hexagon. 
+In this case, you calculate the index for a single point and assume that it is representative across the whole ward. If the wards are large, it may be a good idea to create several points within each ward and average across these.  
 
 The example datasets are publicly available property transactions in Greater London in 2015-2018, geolocated by postcode, as well as a list of wards in City of London and Inner London boroughs. Postcodes were geolocated using the publicly available Code-Point Open geodatapackage. See data description by running ?example_dataset_wards and ?example_dataset_transactions for further details.  
 
@@ -131,7 +130,7 @@ Contains OS data © Crown copyright and database right 2020 Contains Royal Mail 
 
 ## Known issues
 
-*This list is expanded gradually. If you get an error code not on the list below, please submit it on the 'Issue' page and we'll see what can be done. *
+*This list is expanded gradually. If you get an error code not on the list below, please submit it on the 'Issue' page and we'll see what can be done.*
 
 * "error in serialize(data node$con) error writing to connection". This typically means that your system ran out of memory. Try decreasing the number of cores using the n_cores argument. 
 * "Error: cannot allocate vector of size xxx Mb". Also a sign that your system ran out of memory. 
