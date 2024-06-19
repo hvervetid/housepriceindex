@@ -3,7 +3,6 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/hvervetid/housepriceindex/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hvervetid/housepriceindex/actions/workflows/R-CMD-check.yaml)
-[![Github All Releases](https://img.shields.io/github/downloads/hvervetid/housepriceindex/total.svg)]()
 <!-- badges: end -->
 
 The goal of housepriceindex is to provide an easy way to calculate a house price index based on transactions that incorporates both time, geography, and housing characteristics. The package provides a single user-end function called calculate_index(). The package also includes two shapefiles with example transactions and targets to illustrate its workings.
@@ -29,11 +28,10 @@ There are also three other parameters you may set:
 * debug: If set to TRUE, the function will produce very detailed reports for each target.  
 
 ## Installation
-To install the development version of housepriceindex, you must first install and load the devtools package:
+To install the development version of housepriceindex, you must first install the devtools package:
 
 ``` r
-install.pacakges('devtools')
-library(devtools)
+install.packages('devtools')
 ```
 You may then install and load it by running:
 ``` r
@@ -87,23 +85,41 @@ You then find the centroids of the wards and calculate the index at each centroi
 library(housepriceindex)
 library(sf)
 
+
 ### Load data
-## The package comes with two example datasets to easily test the index:
-wards <- example_dataset_wards   
+## The package comes with two example datasets to easily test the index. 
+## These are automatically loaded with the package under the names 'example_dataset_wards' and 'example_dataset_transactions'
+wards <- example_dataset_wards  
 transactions <- example_dataset_transactions
+
 
 ### Find centroids of wards to be used as the targets
 ward_centroids <- sf::st_centroid(wards)
 
-### Run the index 
-index <- calculate_index(ward_centroids, transactions, observations_outer = 5000, observations_inner = 500)
 
-## Produce a quick map of the index in 2015 to see what it looks like 
-index <- index[index$year==2015]
-wards <- merge(wards, index, by = 'target_id')
+### Run the index and get output in long format 
+index_long <- calculate_index(ward_centroids, transactions, observations_outer = 5000, observations_inner = 500)
 
+  
+## Export index in long format to csv and dta 
+fwrite(index_long, 'your/path/to/export/index.csv')
+
+install.packages('haven')
+haven::write_dta(index_long, 'your/path/to/export/index.dta')
+
+
+## Convert to wide format
+index_wide = dcast(index_long, target_id ~ year, value.var = c('price', 'price_se', 'outer_radius_used','inner_radius_used'))
+
+
+## Merge into ward shapes and produce a quick map of the index in 2015 to see what it looks like 
+shape_index <- merge(wards, index_wide, by = 'target_id')
+
+install.packages('ggplot2')
 library(ggplot2)
-ggplot() + geom_sf(data=wards, aes(fill=price)) + scale_fill_gradient(high='darkorchid4', low='wheat', name='Price index 2015 (£)', transform = 'log10')
+ggplot() + geom_sf(data=shape_index, aes(fill=price_2015)) + 
+    scale_fill_gradient(high='darkorchid4', low='wheat', name='Price index 2015 (£)', transform = 'log10')
+  
 ```
 In this case, you calculate the index for a single point and assume that it is representative across the whole hexagon. If the hexagons are large, it may be a good idea to create several points within each hexagon. 
 
