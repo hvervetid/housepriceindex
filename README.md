@@ -103,19 +103,21 @@ ward_centroids <- sf::st_centroid(wards)
 index_long <- calculate_index(ward_centroids, transactions, observations_outer = 5000, observations_inner = 500)
 
   
-## Export index in long format to csv and dta 
+### Export index in long format to csv and dta 
 data.table::fwrite(index_long, 'your/path/to/export/index.csv')
 
 haven::write_dta(index_long, 'your/path/to/export/index.dta')
 
 
-## Convert to wide format
+### Convert to wide format
 index_wide <- data.table::dcast(index_long, target_id ~ year, value.var = c('price', 'price_se', 'outer_radius_used','inner_radius_used'))
 
 
-## Merge into ward shapes and produce a quick map of the index in 2015 to see what it looks like 
+### Merge into ward shapes and save as a shapefile 
 shape_index <- merge(wards, index_wide, by = 'target_id')
+sf::write_sf(shape_index, 'your/path/to/export/index_shapefile.shp)
 
+### Produce a quick map of the index in 2015 to see what it looks like
 ggplot() + geom_sf(data=shape_index, aes(fill=price_2015)) + 
     scale_fill_gradient(high='darkorchid4', low='wheat', name='Price index 2015 (£)', transform = 'log10')
   
