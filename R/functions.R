@@ -51,15 +51,17 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
 
     # If some years are not present within the radius, increase circle radius by 10% and try again
     N_year_within_A = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
-    if (allow_expansion==T){
-      while (N_year_within_A < N_year && radius_A < max_radius_A){
-        radius_A <- radius_A*1.1
-        N_year_within_A = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
-        if (debug){message(paste('Expanding number of observations in outer ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
+    if (N_year_within_A < N_year){
+      if (allow_expansion==T){
+        while (N_year_within_A < N_year && radius_A < max_radius_A){
+          radius_A <- radius_A*1.1
+          N_year_within_A = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
+          if (debug){message(paste('Expanding number of observations in outer ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
+          }
+      } else {
+        stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
         }
-    } else {
-      stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
-    }
+      }
 
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
@@ -82,14 +84,16 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
 
     # If some years are not present within the radius, increase circle radius by 10% and try again
     N_year_within_T = uniqueN(list_of_transactions[dist_km<radius_T & not_own_submarket==0,], by = 'year')
-    if (allow_expansion==T){
-      while (N_year_within_T < N_year && radius_T < max_radius_T){
-        radius_T <- radius_T*1.1
-        N_year_within_T = uniqueN(list_of_transactions[dist_km<radius_T & not_own_submarket==0,], by = 'year')
-        if (debug){message(paste('Expanding number of observations in inner ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
-      }
-    } else {
-      stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
+    if (N_year_within_T < N_year){
+      if (allow_expansion==T){
+        while (N_year_within_T < N_year && radius_T < max_radius_T){
+          radius_T <- radius_T*1.1
+          N_year_within_T = uniqueN(list_of_transactions[dist_km<radius_T & not_own_submarket==0,], by = 'year')
+          if (debug){message(paste('Expanding number of observations in inner ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
+        }
+      } else {
+        stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
+        }
     }
     # if it's too far out, replace with maximum
     if (radius_T > max_radius_T){radius_T <- max_radius_T}
