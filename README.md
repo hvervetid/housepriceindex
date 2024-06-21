@@ -136,13 +136,25 @@ Contains OS data © Crown copyright and database right 2020 Contains Royal Mail 
 *This list is expanded gradually. If you have a question not answered in this readme, you are more than welcome to submit it on the 'Discussion' page and we'll do our best to clarify matters.*
 
 * The number of observations used per target is not equal to the parameter I chose. Why is that? 
-  * This can happen for two reasons. First, if there are several equidistant transactions, the regression will include all of them. This will often lead to handful more observations included than required. Second, if allow_expansion is set to TRUE, the radius will be expanded as necessary to ensure that all possible target-year combinations can be reached, although never beyond the maximum radius set in max_radius_outer and max_radius_inner. 
+  * This can happen for three reasons. 
+  * First, if there are several equidistant transactions, the regression will include all of them. This will often lead to handful more observations included than required. 
+  * Second, if allow_expansion is set to TRUE (the default value), the radius will be expanded as necessary to ensure that all possible target-year combinations can be reached, although never beyond the maximum radius set in max_radius_outer and max_radius_inner. 
+  * Third, the radius used is capped by maximal values set in max_radius_outer and max_radius_inner. 
+* I am not used to working in R. How do I import shapefiles and datasets from my computer? 
+  * Most geographic data (shape, geopackage, etc.) can be imported by loading sf package and running sf::read_sf('path/to/your/shapes.shp'). 
+  * Most spreadsheet data (csv, xlsx) can be imported by loading data.table package and running data.table::fread('path/to/file.csv'). Stata's dta files can be imported by loading haven package and running haven::read_dta('path/to/stata.dta'). 
+* I am not used to R. How do I do something more complicated?
+  * For an evergreen all-round introduction to R, see Hadley Wickham et al's R for Data Science (\url{https://r4ds.hadley.nz}).
+  * For GIS-specific questions, see Taro Mieno's R as GIS for Economists (\url{https://tmieno2.github.io/R-as-GIS-for-Economists/index.html}).
 
 ## Known issues
 
 *This list is expanded gradually. If you get an error code not on the list below, please submit it on the 'Issue' page and we'll see what can be done.*
 
-* "error in serialize(data node$con) error writing to connection". This typically means that your system ran out of memory. Try decreasing the number of cores using the n_cores argument. 
-* "Error: cannot allocate vector of size xxx Mb". Also a sign that your system ran out of memory. 
+* "error in serialize(data node$con) error writing to connection". 
+  *This typically means that your system ran out of memory. Try decreasing the number of cores using the n_cores argument. 
+* "Error: cannot allocate vector of size xxx Mb". 
+  *Also a sign that your system ran out of memory. 
 
-* "Error in fetch(key) : lazy-load database 'path/to/package/help/housepriceindex.rdb' is corrupt". This is apparently a common issue with packages. According to Stackoverflow, restarting R is the best way to solve the problem. If working in Rstudio, run .rs.restartR() and all your current variables etc. will be recreated. 
+* "Error in fetch(key) : lazy-load database 'path/to/package/help/housepriceindex.rdb' is corrupt". 
+  *This is apparently a common issue with packages. According to Stackoverflow, restarting R is the best way to solve the problem. If working in Rstudio, run .rs.restartR() and all your current variables etc. will be recreated. 
