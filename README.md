@@ -144,8 +144,8 @@ Contains OS data © Crown copyright and database right 2020 Contains Royal Mail 
   * Most geographic data (shape, geopackage, etc.) can be imported by loading sf package and running sf::read_sf('path/to/your/shapes.shp'). 
   * Most spreadsheet data (csv, xlsx) can be imported by loading data.table package and running data.table::fread('path/to/file.csv'). Stata's dta files can be imported by loading haven package and running haven::read_dta('path/to/stata.dta'). 
 * I am not used to R. How do I do something more complicated?
-  * For an evergreen all-round introduction to R, see Hadley Wickham et al's R for Data Science (\url{https://r4ds.hadley.nz}).
-  * For GIS-specific questions, see Taro Mieno's R as GIS for Economists (\url{https://tmieno2.github.io/R-as-GIS-for-Economists/index.html}).
+  * For an evergreen all-round introduction to R, see Hadley Wickham et al's R for Data Science (https://r4ds.hadley.nz).
+  * For GIS-specific questions, see Taro Mieno's R as GIS for Economists (https://tmieno2.github.io/R-as-GIS-for-Economists/index.html).
 
 ## Known issues
 

@@ -265,7 +265,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @import fixest
 #' @import sandwich
 #' @import foreach
-#' @import doParallel
+#' @import doSNOW
 #' @import iterators
 #' @export
 #'
@@ -466,15 +466,27 @@ calculate_index = function(target_dataset,
 
   if (debug){message('Evaluating ...')}
   if (use_parallel==T){
-    doParallel::registerDoParallel(n_cores)
 
-    evaluated = foreach::foreach(oa = iterators::iter(target_dataset, by = 'row'), .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %dopar%
+    # Set up cluster
+    cl <- snow::makeCluster(n_cores)
+    registerDoSNOW(cl)
+
+    # Make progress bar
+    iterations <- nrow(target_dataset)
+    pb <- utils::txtProgressBar(max = iterations, style = 3)
+    progress <- function(n) utils::setTxtProgressBar(pb, n)
+    opts <- list(progress = progress)
+
+    # Run
+    evaluated = foreach::foreach(oa = iterators::iter(target_dataset, by = 'row'), .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug, .options.snow = opts) %dopar%
       calculate_index_point(oa, transaction_dataset,
                               observations_outer, observations_inner,
                               max_radius_outer, max_radius_inner,
                               attribute_vars, debug, N_year, allow_expansion)
 
-    doParallel::stopImplicitCluster()
+    # End cluster
+    close(pb)
+    snow::stopCluster(cl)
 
   } else {
     evaluated = foreach::foreach(oa = iterators::iter(target_dataset, by = 'row'), .combine = rbind, .errorhandling = onerror, .packages = package_list, .verbose = debug) %do%

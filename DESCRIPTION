@@ -13,14 +13,16 @@ LazyDataCompression: xz
 RoxygenNote: 7.3.1
 Imports: 
     data.table,
-    doParallel,
+    doSNOW,
     fixest,
     foreach,
     iterators,
     lmtest,
     sandwich,
     sf,
-    stringr
+    snow,
+    stringr,
+    utils
 URL: https://github.com/hvervetid/housepriceindex
 BugReports: https://github.com/hvervetid/housepriceindex/issues
 Depends: 
