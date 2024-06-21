@@ -14,6 +14,7 @@ calculate_index(
   n_cores = NULL,
   use_parallel = T,
   skip_errors = F,
+  allow_expansion = T,
   debug = F
 )
 }
@@ -39,6 +40,8 @@ The dataset must have columns named 'year', 'submarket' and 'price'. Any attribu
 \item{use_parallel}{Whether to use parallel processing. Defaults to TRUE. Turning off can be useful for debugging.}
 
 \item{skip_errors}{Whether to skip problematic targets. Defaults to FALSE, meaning an error will force the function to stop. Changing this parameter makes debugging very hard.}
+
+\item{allow_expansion}{Whether to allow number of included observations to exceed observations_outer param. Defaults to TRUE, meaning radius will increase for sparse target-year combinations.}
 
 \item{debug}{Whether to print all messages for debugging purpose. Defaults to FALSE.}
 }

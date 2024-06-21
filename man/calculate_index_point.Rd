@@ -13,7 +13,8 @@ calculate_index_point(
   max_radius_T,
   treatment_vars,
   debug,
-  N_year
+  N_year,
+  allow_expansion
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ calculate_index_point(
 \item{debug}{Whether to print messages for debugging.}
 
 \item{N_year}{Number of years to calculate the index for.}
+
+\item{allow_expansion}{Allowing for radius expansion to hit target.}
 }
 \value{
 A data.table

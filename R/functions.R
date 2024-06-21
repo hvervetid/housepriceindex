@@ -13,6 +13,7 @@
 #' @param treatment_vars List of variables containing Attributes to be included in regression.
 #' @param debug Whether to print messages for debugging.
 #' @param N_year Number of years to calculate the index for.
+#' @param allow_expansion Allowing for radius expansion to hit target.
 #'
 #' @return A data.table
 #' @export
@@ -20,7 +21,7 @@
 #' @examples
 #' #On the way
 calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
-                               max_radius_A, max_radius_T, treatment_vars, debug, N_year){
+                               max_radius_A, max_radius_T, treatment_vars, debug, N_year, allow_expansion){
 
     # create spatial trends
     list_of_transactions[, trend_X := one_target$target_X-origin_X]
@@ -41,23 +42,27 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
     desired_quantile_A = A_N/N
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
-    if (desired_quantile_A<0 | desired_quantile_A>1 | is.numeric(desired_quantile_A)==F){desired_quantile_A <- 1}
+    if (desired_quantile_A<0 | desired_quantile_A>1 | is.numeric(desired_quantile_A)==F){
+      desired_quantile_A <- 1
+    }
+
+    # Find radius such that number of included observations matches.
     radius_A = as.numeric(stats::quantile(list_of_transactions[not_own_submarket==0,dist_km], desired_quantile_A))
+
+    # If some years are not present within the radius, increase circle radius by 10% and try again
+    N_year_within_A = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
+    if (allow_expansion==T){
+      while (N_year_within_A < N_year && radius_A < max_radius_A){
+        radius_A <- radius_A*1.1
+        N_year_within_A = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
+        if (debug){message(paste('Expanding number of observations in outer ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
+        }
+    } else {
+      stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
+    }
 
     # if it's too far out, replace with maximum
     if (radius_A > max_radius_A){radius_A <- max_radius_A}
-
-    # If some years are not present within the radius, double circle radius and try again
-    N_year_within = uniqueN(list_of_transactions[dist_km<radius_A & not_own_submarket==0,], by = 'year')
-    if (N_year > N_year_within){
-      radius_A <- radius_A*2
-      if (radius_A > max_radius_A){
-        radius_A <- max_radius_A
-        }
-      }
-
-    # if it's too far out, replace with maximum
-
 
     # create marker of whether observations are inside or outside
     list_of_transactions[, outside_A := ifelse(dist_km>radius_A, 1, 0)]
@@ -70,15 +75,26 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
     desired_quantile_T = T_N/N_subset
 
     # If this is too large relative to number of potential observations, replace it by maximum possible
-    if (desired_quantile_T<0 | desired_quantile_T>1 | is.numeric(desired_quantile_T)==F){desired_quantile_T <- 1}
+    if (desired_quantile_T<0 | desired_quantile_T>1 | is.numeric(desired_quantile_T)==F){
+      desired_quantile_T <- 1}
 
     radius_T = as.numeric(stats::quantile(transactions_subset[not_own_submarket==0,dist_km], desired_quantile_T))
-    # if it's too far out, replace with maximum
-    if (radius_T > max_radius_T){
-        radius_T <- max_radius_T
-        applied_max <- 1} else {applied_max <- 0}
 
-    # If radius of inner and outer rings are identical, we invoke emergency powers and set inner radius to proportion of outer
+    # If some years are not present within the radius, increase circle radius by 10% and try again
+    N_year_within_T = uniqueN(list_of_transactions[dist_km<radius_T & not_own_submarket==0,], by = 'year')
+    if (allow_expansion==T){
+      while (N_year_within_T < N_year && radius_T < max_radius_T){
+        radius_T <- radius_T*1.1
+        N_year_within_T = uniqueN(list_of_transactions[dist_km<radius_T & not_own_submarket==0,], by = 'year')
+        if (debug){message(paste('Expanding number of observations in inner ring for target ',one_target$target_id,' due to insufficient observations in some years.'))}
+      }
+    } else {
+      stop(paste0('Insufficient observations for some years for target ', one_target$target_id, '. Consinder turning allow_expansion on or increasing target number of observations.'))
+    }
+    # if it's too far out, replace with maximum
+    if (radius_T > max_radius_T){radius_T <- max_radius_T}
+
+    # If radius of inner and outer rings are identical (for some reason), we invoke emergency powers and set inner radius to proportion of outer
     if (round(radius_T,5)==round(radius_A,5)){
       message(paste('For target id',one_target$target_id, 'inner radius is set to three-quarters of outer radius'))
       radius_T <- 0.75*radius_A}
@@ -88,6 +104,8 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
 
 
     # Run regressions
+    # For cases with more than one year
+    if (N_year > 1){
       formula = stats::reformulate(c(treatment_vars, 'dist_km:yearfactor', 'yearfactor', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket:yearfactor', '0'), response = 'lprice')
       reg = stats::lm(formula, data = transactions_subset)
 
@@ -100,16 +118,38 @@ calculate_index_point = function(one_target, list_of_transactions, A_N, T_N,
         print(clusteredcoefs)
       }
 
-    # Only keep the coefficients of interest
-    coefs = clusteredcoefs[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
-    coefs[, year := as.numeric(stringr::str_extract(varname, '[:digit:]+'))]
+      # Only keep the coefficients of interest
+      coefs = clusteredcoefs[stringr::str_detect(varname, 'yearfactor') & !stringr::str_detect(varname, 'dist') & !stringr::str_detect(varname, 'submarket'),]
 
+      coefs[, year := as.numeric(stringr::str_extract(varname, '[:digit:]+'))]
+
+    } else {
+    # Special case for single year: we use intercept instead, remove interaction terms.
+      formula = stats::reformulate(c(treatment_vars, 'dist_km', 'outside_T', 'trend_X', 'trend_Y', 'not_own_submarket'), response = 'lprice')
+      reg = stats::lm(formula, data = transactions_subset)
+
+      test = lmtest::coeftest(reg, vcov = vcovCL, cluster = ~outside_T)
+      test = as.data.frame(test[,])
+      clusteredcoefs = data.table(varname = rownames(test), coefficients = test$Estimate, stderr=test$'Std. Error')
+
+      if (debug){
+        message(paste('Coefficient table for target_id', one_target$target_id, 'looks like this:'))
+        print(clusteredcoefs)
+      }
+
+      # Only keep the intercept
+      coefs = clusteredcoefs[varname=='(Intercept)',]
+
+      yeartouse = mean(transactions_subset$year)
+      coefs[, year := yeartouse]
+
+    }
     # If only one year, remove artificial companion
-    coefs = coefs[year != 999999,]
+    #coefs = coefs[year != 999999,]
 
     # Find the number of transactions used for outer and inner ring in each year
-    Nouter = transactions_subset[, list(.N), by = 'year']
-    Ninner = transactions_subset[outside_T==0, list(.N), by = 'year']
+    Nouter = transactions_subset[not_own_submarket==0, list(.N), by = 'year']
+    Ninner = transactions_subset[not_own_submarket==0 & outside_T==0, list(.N), by = 'year']
 
     # create single-observation dataset and save
     tosave = data.table::data.table(
@@ -214,6 +254,7 @@ transform_crs_to_utm <- function(sf_df, debug=T){
 #' @param n_cores The number of cores to be used. Default is NULL, meaning that the program will use all but one available cores.
 #' @param use_parallel Whether to use parallel processing. Defaults to TRUE. Turning off can be useful for debugging.
 #' @param skip_errors Whether to skip problematic targets. Defaults to FALSE, meaning an error will force the function to stop. Changing this parameter makes debugging very hard.
+#' @param allow_expansion Whether to allow number of included observations to exceed observations_outer param. Defaults to TRUE, meaning radius will increase for sparse target-year combinations.
 #' @param debug Whether to print all messages for debugging purpose. Defaults to FALSE.
 #'
 #' @return A single data.table with a row for each year-target pair.
@@ -241,6 +282,7 @@ calculate_index = function(target_dataset,
                            n_cores = NULL,
                            use_parallel = T,
                            skip_errors=F,
+                           allow_expansion=T,
                            debug=F){
 
     message('Preparing datasets...')
@@ -371,14 +413,17 @@ calculate_index = function(target_dataset,
   # If only one year exists, create an artificial year to ensure regression runs
   if (var(transaction_dataset$year)==0){
     if (debug){message('Only one year found. Creating separate dummy...')}
-    transaction_one <- transaction_dataset
-    transaction_one$year <- 999999
-    transaction_dataset <- rbind(transaction_dataset, transaction_one)
+    transaction_dataset[, yearfactor := year]
+    #transaction_one <- transaction_dataset
+    #transaction_one$year <- 999999
+    #transaction_dataset <- rbind(transaction_dataset, transaction_one)
+  } else {
+    transaction_dataset[, yearfactor := base::as.factor(year)]
   }
 
   # Prepare year as factor
   if (debug){message('Converting year to factor variable...')}
-  transaction_dataset[, yearfactor := base::as.factor(year)]
+  #transaction_dataset[, yearfactor := base::as.factor(year)]
 
   if (debug){message(paste('Calculating index for the following years: ', print(levels(transaction_dataset$yearfactor))))}
 
@@ -427,7 +472,7 @@ calculate_index = function(target_dataset,
       calculate_index_point(oa, transaction_dataset,
                               observations_outer, observations_inner,
                               max_radius_outer, max_radius_inner,
-                              attribute_vars, debug, N_year)
+                              attribute_vars, debug, N_year, allow_expansion)
 
     doParallel::stopImplicitCluster()
 
@@ -436,7 +481,7 @@ calculate_index = function(target_dataset,
       calculate_index_point(oa, transaction_dataset,
                             observations_outer, observations_inner,
                             max_radius_outer, max_radius_inner,
-                            attribute_vars, debug, N_year)
+                            attribute_vars, debug, N_year, allow_expansion)
     }
 
 

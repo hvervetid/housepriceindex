@@ -17,15 +17,16 @@ The outer ring determines which observations will enter the regression for a giv
 
 Meanwhile, the inner ring is used to calculate a fixed effect around the target. This will capture, say, location-specific amenities such as a nice park. 
 
-If you're not sure where to start, try setting the observations_outer parameter to about 5% of all transactions and observations_inner to about 0.5% of all transactions as a first guess. However, you don't want the numbers to be too low: again, as a pure rule of thumb, you probably don't want the observations_inner to be below 500. 
+If you're not sure where to start, try setting the observations_outer parameter to about 5% of all transactions and observations_inner to about 0.5% of all transactions as a first guess. However, you don't want the numbers to be too low: again, as a pure rule of thumb, you probably don't want the observations_inner to be below 100. 
 
 There are also three other parameters you may set: 
 * max_radius_outer: Sets a maximal radius that the outer ring can take. The default value is 20 kilometers. 
 * max_radius_inner: Sets a maximal radius that the inner ring can take. The default value is 10 kilometers. 
-* n_cores: How many cores the program will use. The default is NULL, meaning that R will use all available cores but one. If the program fails because of a lack of memory, try selecting a lower number. You can see how many cores your computer has by running 'parallel::detectCores()' in console. 
-* use_parallel: Whether to use parallel programming in the back. Defaults to TRUE. 
-* skip_errors: Whether to skip to next target on encountering errors with a target (e.g. because of insufficient observations within the max radius). Defaults to FALSE, meaning that the code will break instead and force an error. If set to TRUE, the code will check how many observations failed to produce an output, but there will be no information on why it failed. 
-* debug: If set to TRUE, the function will produce very detailed reports for each target.  
+* n_cores: How many cores the program will use. The default is all available cores but one. If the program fails because of a lack of memory, try selecting a lower number. You can see how many cores your computer has by running 'parallel::detectCores()' in console. 
+* use_parallel: Whether to use parallel programming in the back end. Defaults to TRUE. 
+* skip_errors: Whether to skip to next target on encountering errors with a target (e.g. because of insufficient observations within the max radius). If set to TRUE, the code will check how many observations failed to produce an output, but there will be no information on why it failed. Defaults to FALSE, meaning that the code will break instead and force an error. 
+* allow_expansion: Whether the algorithm is allowed to include more observations above the numbers set by observations_outer and observations_inner parameters. If set to TRUE, the algorithm will further expand the outer and/or inner rings in cases where certain target-year pairs are sparse until all possible combinations are identified. Defaults to TRUE. 
+* debug: If set to TRUE, the function will produce very detailed reports for each target. Defaults to FALSE. 
 
 ## Installation
 To install the development version of housepriceindex, you must first install the devtools package:
@@ -129,6 +130,13 @@ The example datasets are publicly available property transactions in Greater Lon
 Contains HM Land Registry data © Crown copyright and database right 2021. This data is licensed under the Open Government Licence v3.0. 
 
 Contains OS data © Crown copyright and database right 2020 Contains Royal Mail data © Royal Mail copyright and Database right 2020 Contains National Statistics data © Crown copyright and database right 2020
+
+## Commonly Asked Questions 
+
+*This list is expanded gradually. If you have a question not answered in this readme, you are more than welcome to submit it on the 'Discussion' page and we'll do our best to clarify matters.*
+
+* The number of observations used per target is not equal to the parameter I chose. Why is that? 
+  * This can happen for two reasons. First, if there are several equidistant transactions, the regression will include all of them. This will often lead to handful more observations included than required. Second, if allow_expansion is set to TRUE, the radius will be expanded as necessary to ensure that all possible target-year combinations can be reached, although never beyond the maximum radius set in max_radius_outer and max_radius_inner. 
 
 ## Known issues
 
